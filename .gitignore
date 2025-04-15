@@ -1,0 +1,8 @@
+.vscode/*
+__repo__/
+__repo__/boards/frdmrw612/
+armgcc/flash_debug/
+armgcc/build*
+armgcc/clean*
+httpsclient.old
+httpsclienth.old

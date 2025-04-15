@@ -1,0 +1,33 @@
+{
+  "version": 7,
+  "cmakeMinimumRequired": {
+    "major": 3
+  },
+  "configurePresets": [
+    {
+      "name": "flash_debug-env",
+      "displayName": "flash_debug-env",
+      "hidden": true,
+      "environment": {
+        "ARMGCC_DIR": "C:/Users/nxf81111/.mcuxpressotools/arm-gnu-toolchain-13.2.Rel1-mingw-w64-i686-arm-none-eabi",
+        "SdkRootDirPath": "c:/NXP/frdm_rw612_25_03_00",
+        "POSTPROCESS_UTILITY": "C:/Users/nxf81111/.mcuxpressotools/mcux-fixelf/mcux-fixelf.exe",
+        "MCUX_VENV_PATH": "C:/Users/nxf81111/.mcuxpressotools/.venv/Scripts",
+        "PATH": "$env{MCUX_VENV_PATH};$penv{PATH}"
+      }
+    },
+    {
+      "name": "flash_release-env",
+      "displayName": "flash_release-env",
+      "hidden": true,
+      "environment": {
+        "ARMGCC_DIR": "C:/Users/nxf81111/.mcuxpressotools/arm-gnu-toolchain-13.2.Rel1-mingw-w64-i686-arm-none-eabi",
+        "SdkRootDirPath": "c:/NXP/frdm_rw612_25_03_00",
+        "POSTPROCESS_UTILITY": "C:/Users/nxf81111/.mcuxpressotools/mcux-fixelf/mcux-fixelf.exe",
+        "MCUX_VENV_PATH": "C:/Users/nxf81111/.mcuxpressotools/.venv/Scripts",
+        "PATH": "$env{MCUX_VENV_PATH};$penv{PATH}"
+      }
+    }
+  ],
+  "buildPresets": []
+}
