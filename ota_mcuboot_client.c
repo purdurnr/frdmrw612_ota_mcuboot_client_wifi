@@ -308,8 +308,8 @@ static shell_status_t shellCmd_ota(shell_handle_t shellHandle, int32_t argc, cha
 
     /* File Download Over TLS */
 
-    // ret = https_client_tls_init(host, port);
-    ret = https_client_tls_init();
+    ret = https_client_tls_init(host, port);
+    // ret = https_client_tls_init();
     if (ret != SUCCESS)
     {
         PRINTF("FAILED to init TLS (ret=%d)\n", ret);

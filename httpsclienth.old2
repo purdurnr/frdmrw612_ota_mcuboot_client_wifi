@@ -22,7 +22,7 @@
 #include "lwip/opt.h"
 
 #include "mbedtls/entropy.h"
-#include "mbedtls/ctr_drbg.h"
+#include "mbedtls/hmac_drbg.h"
 #include "mbedtls/certs.h"
 #include "mbedtls/x509.h"
 #include "mbedtls/ssl.h"
@@ -35,15 +35,19 @@ extern "C" {
 
 typedef mbedtls_ssl_context *http_client_tls_sock_t;
 
-int https_client_tls_init(const char *host, const char *service);
+int https_client_tls_init(void);
 void https_client_tls_release(void);
+http_client_tls_sock_t https_client_tls_socket(int sock);
+void https_client_tls_shutdown(http_client_tls_sock_t tls_sock);
+int32_t https_client_tls_recv(http_client_tls_sock_t tls_sock, void *buf, size_t len, int flags);
+int32_t https_client_tls_send(http_client_tls_sock_t tls_sock, const void *buf, size_t len, int flags);
 
-int https_client_ota_download(const char *host, const char *fPath, uint32_t dstAddrPhy, size_t dstSize, size_t *fSize);
+void *client_mem_alloc_zero(size_t xSize);
 
 typedef struct _TLSDataParams
 {
     mbedtls_entropy_context entropy;
-    mbedtls_ctr_drbg_context ctr_drbg;
+    mbedtls_hmac_drbg_context hmac_drbg;
     mbedtls_ssl_context ssl;
     mbedtls_ssl_config conf;
     uint32_t flags;

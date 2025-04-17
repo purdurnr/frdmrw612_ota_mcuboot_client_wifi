@@ -16,8 +16,8 @@
  */
 
 #define OTA_SERVER_NAME_DEFAULT "192.168.0.10"
-#define MEMFAULT_SERVER_NAME_DEFAULT "chunks.memfault.com"
-
+// #define MEMFAULT_SERVER_NAME_DEFAULT "chunks.memfault.com"
+#define MEMFAULT_SERVER_NAME_DEFAULT "54.235.98.107"
 
 /*
  * OTA server service name or port number string.
