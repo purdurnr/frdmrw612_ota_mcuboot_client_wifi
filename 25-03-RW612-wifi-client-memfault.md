@@ -17,6 +17,9 @@ NXP has partnered with Memfault to provide the mechanisms for adding this type o
 
 ### 1.1 Move application to boot space.  Remove mcuboot
 The selected project includes an Https client and most of the code commonly found in a connected device.  However, the default project includes a bootloader which adds complexity to the process.  We can remove the bootloader requirement by moving the start of main to the boot location.  The following steps show how to remove the 0x200000 reserved for the bootloader from the linker file.  
+    - Change STACK_SIZE from 0x400 to 0x800. Data dumping is handled in exception handler, so the main stack should be large enough.  
+    - Shrink the length of m_text by 0x8000, this region is reserved to save dumped data.  
+    - Need to place objects in RAM, **like fsl_flexspi.c**, because these functions might be called when the flash is being programed or erased, so place them in RAM.  
 1. Open RW610_flash.ld found in /armgcc of project
 2. Replace initial lines of linker file that specify the offset memory locations.
     ``` c++
@@ -90,37 +93,25 @@ The MCUXpresso project is configured using cmake settings.  The MCUXpresso VS Co
     This would be the result if the freertos or the assert components were not removed.  
 
 ## 3.0 Add Memfault example code to project and leverage shell menu
-### 3.1 Config Wifi AP
+### 3.1 Replace Host/Port with Memfault SDK Defines (ota_mcuboot_client.c)
+   This will change the server name in the main project file.  Versus modifying HTTPS_SERVER_ values in httpsclient.c.  
+   The values are defined in the Memfault SDK, should be discovered with Cmake modification in step 2.0.
 
-1. Update ota_config.h to include Memfault servers
-    - COPY OTA_SERVER_NAME.  REPLACE OTA with MEMFAULT.
-    ```c++
-    #define OTA_SERVER_NAME_DEFAULT "192.168.0.10"
-    #define MEMFAULT_SERVER_NAME_DEFAULT "chunks.memfault.com"
-    ```
-
-    - COPY OTA_SERVER_PORT.  Replace OTA with MEMFAULT.
     ``` c++
-    #define OTA_SERVER_PORT_DEFAULT "4433"
-    #define MEMFAULT_SERVER_PORT_DEFAULT "443"
+    char *host = MEMFAULT_HTTP_CHUNKS_API_HOST;
+    char *port = MEMFAULT_HTTP_APIS_DEFAULT_PORT;
     ```
-    **__NOTE:__** We found that DNS was not working.  SO we replaced name with IP address.  We will look into how to resolve this limitation.  This step can be removed once DNS is resolved.  
+### 3.1.Temp Server DNS work around (ota_config.h)  
+   **__NOTE:__** We found that DNS was not working.  SO we replaced name with IP address.  We will look into how to resolve this limitation.  This step can be removed once DNS is resolved.  
     ``` c++
     const char *HTTPS_SERVER_NAME = "54.235.98.107";
     const char *HTTPS_SERVER_PORT = "443";
     ```
 
-2. Replace OTA with Memfault for Server and Port in ota_mcuboot_client.c
-   This will change the server name in the main project file.  Versus modifying HTTPS_SERVER_ values in httpsclient.c.  
-    ``` c++
-    char *host = MEMFAULT_SERVER_NAME_DEFAULT;
-    char *port = MEMFAULT_SERVER_PORT_DEFAULT;
-    ```
-
-## 3.2 Modify to allow Connection to Memfault Server
-1. Need to connect with chunks.memfault.com or in code MEMFAULT_HTTP_CHUNKS_API_HOST
-2. Requires client Certificate Authority (CA) cert to be replaced with expected valid Memfault cert. 
-3. Update mbedtls with Memfault requirements
+## 3.2 Modify TLS settings to allow Connection to Memfault Server
+Need to connect with chunks.memfault.com or in code MEMFAULT_HTTP_CHUNKS_API_HOST
+Requires client Certificate Authority (CA) cert to be replaced with expected valid Memfault cert. 
+1. Update mbedtls configuration with Memfault requirements
     Add following definitions to **mbedtlc_user-config.h**
     ``` c++
     #define MBEDTLS_SSL_SERVER_NAME_INDICATION 1
@@ -128,7 +119,7 @@ The MCUXpresso project is configured using cmake settings.  The MCUXpresso VS Co
     #define MBEDTLS_PEM_PARSE_C 1
     ```
 
-4. Replace test CA cert with Memfault certificate
+2. Replace existing test CA cert with Memfault certificate
     ``` c++
     const char memfault_cert[] = MEMFAULT_ROOT_CERTS_DIGICERT_GLOBAL_ROOT_G2;
     size_t memfault_cert_len = sizeof(memfault_cert);
@@ -136,24 +127,25 @@ The MCUXpresso project is configured using cmake settings.  The MCUXpresso VS Co
     DEBUG_PRINTF("  . Loading the CA root certificate ...");
     ret = mbedtls_x509_crt_parse(&(tlsDataParams.cacert), (const unsigned char *)memfault_cert, memfault_cert_len);
     ```
-
-
-## Replace Memfault as MQTT Server in Wifi MQTT Project
-1. Add memfault_platform_boot(); to wifi_mqtt.c   
-**_NOTE_** Ctrl - Right Click on function and it opens from Memfault SDK)  
-2. Copy/Paste sections from working Memfault example into reserved sections of wifi example (i.e. Variables and Prototypes)
-3. Modify main_task which is created in main() with the xTaskCreate()
-4. Enter the CLI while(1) menu following the mqtt_freertos_run_thread() before TaskDelete
-5. Copy/Paste self_test(), dump_data(), and trigger_fault() from working example to end of wifi_mqtt.c
-5. Add #include for memfault components and ports for freertos
-6. Use Add Component to project to update the project config.cmake file.  It adds memfault components to the cmake build.
-8. Copy configuration values from mcux_config.h into wifi_mqtt 
-9. Copy FreeRTOSConfig_frag.h trace definition into wifi_mqtt FreeRTOSConfig.h 
+## 3.3 Add Includes/Defines to OTA Wifi Client Project
+1. Add #include for memfault components and ports for freertos
+    ``` c++
+    #include "memfault/components.h"
+    #include "memfault/ports/freertos.h"
     ```
-    #include "memfault/ports/freertos_trace.h"
+    This may require the following includes to be added for FreeRTOS if not in project being ported:
     ```
-10. Copy Memfault project information into wifi_config.h
+    /* FreeRTOS kernel includes. */
+    #include "FreeRTOS.h"
+    #include "task.h"
+    #include "queue.h"
+    #include "timers.h"
     ```
+2. Add memfault_platform_boot(); to main() in **ota_mcuboot_client.c**
+    Function can be called after existing BoardInit() routines.
+    **_NOTE_** Ctrl - Right Click on function and it opens from Memfault SDK)  
+3. Copy Memfault configuration values into **mcux_config.h** 
+    ``` c++
     #define CONFIG_MEMFAULT_DEVICE_SERIAL "NXP_RW612"
     #define CONFIG_MEMFAULT_SW_VERSION "1.0.0"
     #define CONFIG_MEMFAULT_HW_VERSION "FRDM-RW612"
@@ -162,8 +154,13 @@ The MCUXpresso project is configured using cmake settings.  The MCUXpresso VS Co
     #define CONFIG_MEMFAULT_SW_TYPE "wifi-mqtt-memfault"
     ```
 
-11. Modify the current setting of the FreeRTOSConfig for following
+4. Modify **FreeRTOSConfig_frag.h** to support Memfault  
+    ``` c++
+    #include "memfault/ports/freertos_trace.h"
     ```
+5. Modify **FreeRTOSConfig.h** to support Memfault
+    Modify the current settings with following
+    ``` c++
     #define INCLUDE_uxTaskGetStackHighWaterMark 1
     #define INCLUDE_xTaskGetIdleTaskHandle      0
     #define INCLUDE_eTaskGetState               0
@@ -171,64 +168,20 @@ The MCUXpresso project is configured using cmake settings.  The MCUXpresso VS Co
     #define INCLUDE_xTaskAbortDelay             0
     #define INCLUDE_xTaskGetHandle              0
 
-    ```
-12. Add the following missing defines to the end of FreeRTOS Config
-    ```
+    ```  
+    
+    Add the following missing defines to the end of FreeRTOS Config
+    ``` c++
     #define vPortSVCHandler SVC_Handler
     #define xPortPendSVHandler PendSV_Handler
     #define xPortSysTickHandler SysTick_Handler
     ```
-**_NOTE_** Use Build errors by opening explorer or "Repository" view.  Push down into project to find "RED" file.  Likely this will uncover an include that is not updated properly.
+    **_TIP:_** Use Build errors by opening explorer or "Repository" view.  Push down into project to find "RED" file.  Likely this will uncover an include that is not updated properly.
 
-13. Memfault platform port includes a FreeRtos config file.  
-
-Removed component:
-This was not in the working memfault example.  I had just added all components.  Thought http would be needed for mqtt demo?
-- set(CONFIG_USE_component_memfault_sdk_http true)
-- added set(CONFIG_USE_utility_debug_console_lite true)
-
-14. Update Linker File for added Memfault
-- in armgcc/RW610_flash.ld, change STACK_SIZE from 0x400 to 0x800. Data dumping is handled in exception handler, so the main stack should be large enough.  
-- in armgcc/RW610_flash.ld, shrink the length of m_text by 0x8000, this region is reserved to save dumped data.  
-- in armgcc/RW610_flash.ld, place some necessary objects in RAM, **like fsl_flexspi.c**, because these functions might be called when the flash is being programed or erased. So much place them in RAM.  
-
-## Replace CLI Chunk PRINTF with MQTT Transmission to Memfault Dashboard
-The mqtt SERVER HOST is set in mqtt_freertos.c
-- EXAMPLE_MQTT_SERVER_HOST "broker.hivemq.com"
-- mqtt_connect_client_info_t has all info... id, username, password,...
-
-## Use Pyserial for COM Port
-1. pyserial-miniterm in command line.  If fails.  Install py pyserial-miniterm
-2. Determine what ports are available for connection.  pyserial-miniterm
-3. Enter COM port for J-Link i.e. COM4
-   pyserial-miniterm --raw COM4 115200
-
-
-
-2. Add memfault includes for memfault SDK components
-    ```
-    #include "memfault/components.h"
-    #include "memfault/ports/freertos.h"
-    ```
-3. Add FreeRTOS in component manager
-4. Add FreeRTOS include to project
-    ```
-    /* FreeRTOS kernel includes. */
-    #include "FreeRTOS.h"
-    #include "task.h"
-    #include "queue.h"
-    #include "timers.h"
-    ```
-
-5.  COmment out assert component in cmake.config or set current component to false
-    Defined in the memfault sdk.
-5. In FreeRTOS Config.h
-    1. Change setting of INCLUDE_xTaskGetCurrentTaskHandle to 0
-    2.     #include "memfault/ports/freertos_trace.h"
-5. Modify linker file for memfault storage
-6. Add     memfault_platform_boot(); to main() after Board initialization
-
-## Create shell commands for Memfault routines
+## 3.4 Add Memfault routines and add new shell commands
+2. Copy/Paste sections from working Memfault example into reserved sections of wifi example (i.e. Variables and Prototypes)
+    
+    Copy/Paste self_test(), dump_data(), and trigger_fault() from working example to end of wifi_mqtt.c
 1. Declare each function for Memfault shell commands
     ```
     static shell_status_t shellCmd_trigger(shell_handle_t shellHandle, int32_t argc, char **argv);
@@ -256,29 +209,15 @@ The mqtt SERVER HOST is set in mqtt_freertos.c
         SHELL_RegisterCommand(s_shellHandle, SHELL_COMMAND(trigger));
     ```
 
-## Configure Memfault Project Information
-1. Add the Project Key from dashboard into httpsclient.c
+## 3.5 Modify Default Httpsclient.c for Memfault 
+1. Add the Project Key from Memfault dashboard into httpsclient.c
     Found under the desired dashboard in app.memfault.com
     Example: NXP Marketing is "CxsNSPBMoJdnuSaTOT2LIZPy8pKoJgtI"
     ```
         // Memfault project key
     const char *memfault_project_key = "<YOUR PROJECT KEY HERE>";
     ```
-
-2. Add include and variable for the memfault cert
-    ```
-    #include "memfault/http/root_certs.h"
-    const char memfault_cert[] = MEMFAULT_ROOT_CERTS_DIGICERT_GLOBAL_ROOT_CA;
-    ```
-3. Add variables for the server location and the buffer for coredump
-    ```
-    const char *HTTPS_SERVER_NAME = MEMFAULT_HTTP_CHUNKS_API_HOST;
-    const char *HTTPS_SERVER_PORT = "443";
-    unsigned char https_buf[1024];
-    ```
-3.  Remove default variable for https_buf.  To eliminate redefinition
-
-3.  Add incldue stdio.h for string passing
+2.  Add include stdio.h for string passing
 3.  Add Debug and TLS Definitions
     ```
     /* This is the value used for ssl read timeout */
@@ -434,7 +373,7 @@ The mqtt SERVER HOST is set in mqtt_freertos.c
         return 0;
     }
     ```
-## Add Memfault Send CHunks at the end of HTTPSClient TLS Handshake
+## 3.6 Add Memfault Send CHunks at the end of HTTPSClient TLS Handshake
     ```
     #ifdef MBEDTLS_DEBUG_C
     if (mbedtls_ssl_get_peer_cert(&(tlsDataParams.ssl)) != NULL)
@@ -485,11 +424,17 @@ The mqtt SERVER HOST is set in mqtt_freertos.c
     https_client_tls_release();
     ```
 
-## Use tls command to send data to Memfault
+## 3.7 Use tls command to send data to Memfault
 1.     https_client_tls_init();
 
+## 4.0 Build and DEbug Memfault Coredump/REmote Diagnostics
+### 4.1 Use Pyserial for COM Port
+1. pyserial-miniterm in command line.  If fails.  Install py pyserial-miniterm
+2. Determine what ports are available for connection.  pyserial-miniterm
+3. Enter COM port for J-Link i.e. COM4
+   pyserial-miniterm --raw COM4 115200
 
-## Verify Memfault account setup
+## 5.0 Verify Memfault account setup
 1. Register for Memfault account at www.memfault.com
 2. Import Example for FRDM-RW612. "memfault".
 3. Build and Debug to verify base memfault enablement works.
@@ -503,5 +448,3 @@ The mqtt SERVER HOST is set in mqtt_freertos.c
 10. Go to Devices and you should see Chunk import is now associated with Symbol File / Version.  Also "MEMFAULT_HW_VERSION" is pulled from chunks.
 11. Go to All Dashboards, you will see new Issues.
 12. Explore Issues.  You will see Hard Fault at trigger_fault as many times as you upload Chunks
-
-
