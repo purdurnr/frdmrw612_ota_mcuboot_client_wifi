@@ -256,8 +256,8 @@ static shell_status_t shellCmd_ota(shell_handle_t shellHandle, int32_t argc, cha
     /* Initialized with default values */
 
     char *path = OTA_IMAGE_PATH_DEFAULT;
-    char *host = MEMFAULT_SERVER_NAME_DEFAULT;
-    char *port = MEMFAULT_SERVER_PORT_DEFAULT;
+    char *host = MEMFAULT_HTTP_CHUNKS_API_HOST;
+    char *port = MEMFAULT_HTTP_APIS_DEFAULT_PORT;
 
     if (argc < 2)
     {
